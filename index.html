@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Focus Flow</title>
+<style>
+  :root {
+    --bg: #f5f3ff;
+    --card: #ffffff;
+    --ink: #1f1b2e;
+    --muted: #6b6480;
+    --accent: #7c5cff;
+    --accent-2: #ff6b9d;
+    --accent-3: #4ade80;
+    --ring-track: #ece9fb;
+    --danger: #ef4444;
+    --shadow: 0 12px 32px rgba(80, 60, 160, 0.12);
+    --radius: 18px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: linear-gradient(160deg, #f5f3ff 0%, #eef2ff 40%, #fdf2f8 100%);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+  }
+  .app {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 32px 20px 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 {
+    font-size: 22px;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .streak-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--card);
+    padding: 8px 14px;
+    border-radius: 999px;
+    box-shadow: var(--shadow);
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .streak-badge .flame { font-size: 16px; }
+
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 28px 24px;
+  }
+
+  .timer-card { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+
+  .ring-wrap { position: relative; width: 220px; height: 220px; }
+  svg.ring { transform: rotate(-90deg); width: 100%; height: 100%; }
+  .ring-track { fill: none; stroke: var(--ring-track); stroke-width: 12; }
+  .ring-progress {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 12;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.3s linear, stroke 0.3s ease;
+  }
+  .ring-progress.break { stroke: var(--accent-3); }
+
+  .ring-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .time { font-size: 44px; font-weight: 700; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
+  .mode-label {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+  }
+  .mode-label.break { color: var(--accent-3); }
+  .current-task {
+    font-size: 13px;
+    color: var(--muted);
+    max-width: 160px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .controls { display: flex; gap: 12px; align-items: center; }
+  button {
+    font-family: inherit;
+    border: none;
+    cursor: pointer;
+    transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease;
+  }
+  button:active { transform: scale(0.94); }
+
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 12px 32px;
+    border-radius: 999px;
+    box-shadow: 0 8px 20px rgba(124, 92, 255, 0.35);
+  }
+  .btn-primary.running { background: var(--accent-2); box-shadow: 0 8px 20px rgba(255, 107, 157, 0.35); }
+  .btn-secondary {
+    background: var(--ring-track);
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 600;
+    padding: 12px 20px;
+    border-radius: 999px;
+  }
+  .icon-btn {
+    background: transparent;
+    color: var(--muted);
+    font-size: 18px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .icon-btn:hover { background: var(--ring-track); }
+
+  .duration-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+  .chip {
+    background: var(--ring-track);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 999px;
+  }
+  .chip.active { background: var(--accent); color: white; }
+
+  .tasks-card h2 {
+    font-size: 15px;
+    margin: 0 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .tasks-card h2 .count { color: var(--muted); font-weight: 500; font-size: 13px; }
+
+  .add-task-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .add-task-row input {
+    flex: 1;
+    border: 1.5px solid var(--ring-track);
+    border-radius: 12px;
+    padding: 11px 14px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s ease;
+  }
+  .add-task-row input:focus { border-color: var(--accent); }
+  .add-task-row button {
+    background: var(--accent);
+    color: white;
+    width: 42px;
+    border-radius: 12px;
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .task-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .task-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    transition: background 0.15s ease;
+  }
+  .task-item:hover { background: #faf9ff; }
+  .task-item.active { background: #f1edff; }
+  .task-item.done .task-text { text-decoration: line-through; color: var(--muted); }
+
+  .checkbox {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid var(--ring-track);
+    background: transparent;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 12px;
+  }
+  .checkbox.checked { background: var(--accent-3); border-color: var(--accent-3); }
+
+  .task-text { flex: 1; font-size: 14px; cursor: pointer; }
+  .task-pomos { font-size: 12px; color: var(--muted); flex-shrink: 0; }
+  .task-delete {
+    background: transparent;
+    color: var(--muted);
+    font-size: 16px;
+    opacity: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .task-item:hover .task-delete { opacity: 1; }
+  .task-delete:hover { background: #fee2e2; color: var(--danger); }
+
+  .empty-state { text-align: center; color: var(--muted); font-size: 13px; padding: 20px 0; }
+
+  .stats-card { display: flex; justify-content: space-around; text-align: center; }
+  .stat .num { font-size: 22px; font-weight: 700; }
+  .stat .label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16131f;
+      --card: #211d33;
+      --ink: #f1eefc;
+      --muted: #9992b3;
+      --ring-track: #322c4a;
+      --shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+    }
+    html, body { background: linear-gradient(160deg, #16131f 0%, #191530 40%, #200f24 100%); }
+    .task-item:hover { background: #29233e; }
+    .task-item.active { background: #2c2547; }
+    .task-delete:hover { background: #3a1f24; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>🌊 Focus Flow</h1>
+    <div class="streak-badge"><span class="flame">🔥</span><span id="streakCount">0</span> day streak</div>
+  </header>
+
+  <div class="card timer-card">
+    <div class="ring-wrap">
+      <svg class="ring" viewBox="0 0 220 220">
+        <circle class="ring-track" cx="110" cy="110" r="100"></circle>
+        <circle id="ringProgress" class="ring-progress" cx="110" cy="110" r="100"></circle>
+      </svg>
+      <div class="ring-center">
+        <div class="mode-label" id="modeLabel">Focus</div>
+        <div class="time" id="timeDisplay">25:00</div>
+        <div class="current-task" id="currentTaskLabel"></div>
+      </div>
+    </div>
+
+    <div class="duration-row" id="durationRow">
+      <button class="chip active" data-mins="25">25 min</button>
+      <button class="chip" data-mins="15">15 min</button>
+      <button class="chip" data-mins="45">45 min</button>
+    </div>
+
+    <div class="controls">
+      <button class="icon-btn" id="resetBtn" title="Reset">↺</button>
+      <button class="btn-primary" id="startBtn">Start</button>
+      <button class="btn-secondary" id="skipBtn">Skip</button>
+    </div>
+  </div>
+
+  <div class="card stats-card">
+    <div class="stat"><div class="num" id="todayPomos">0</div><div class="label">today</div></div>
+    <div class="stat"><div class="num" id="totalPomos">0</div><div class="label">all time</div></div>
+    <div class="stat"><div class="num" id="tasksDone">0</div><div class="label">tasks done</div></div>
+  </div>
+
+  <div class="card tasks-card">
+    <h2>Tasks <span class="count" id="taskCount"></span></h2>
+    <div class="add-task-row">
+      <input type="text" id="taskInput" placeholder="What are you focusing on?" maxlength="120" />
+      <button id="addTaskBtn">+</button>
+    </div>
+    <ul class="task-list" id="taskList"></ul>
+    <div class="empty-state" id="emptyState">No tasks yet — add one above to get started.</div>
+  </div>
+</div>
+
+<audio id="chime" preload="auto"></audio>
+
+<script>
+(function () {
+  const STORAGE_KEY = "focusflow.v1";
+  const RING_RADIUS = 100;
+  const RING_CIRC = 2 * Math.PI * RING_RADIUS;
+
+  const el = {
+    time: document.getElementById("timeDisplay"),
+    modeLabel: document.getElementById("modeLabel"),
+    ring: document.getElementById("ringProgress"),
+    startBtn: document.getElementById("startBtn"),
+    resetBtn: document.getElementById("resetBtn"),
+    skipBtn: document.getElementById("skipBtn"),
+    durationRow: document.getElementById("durationRow"),
+    taskInput: document.getElementById("taskInput"),
+    addTaskBtn: document.getElementById("addTaskBtn"),
+    taskList: document.getElementById("taskList"),
+    emptyState: document.getElementById("emptyState"),
+    taskCount: document.getElementById("taskCount"),
+    currentTaskLabel: document.getElementById("currentTaskLabel"),
+    streakCount: document.getElementById("streakCount"),
+    todayPomos: document.getElementById("todayPomos"),
+    totalPomos: document.getElementById("totalPomos"),
+    tasksDone: document.getElementById("tasksDone"),
+    chime: document.getElementById("chime"),
+  };
+
+  el.ring.style.strokeDasharray = RING_CIRC;
+
+  function todayKey() {
+    const d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+
+  function loadState() {
+    let raw;
+    try { raw = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) { raw = null; }
+    const defaults = {
+      focusMins: 25,
+      tasks: [],
+      activeTaskId: null,
+      totalPomos: 0,
+      pomosByDay: {},
+      lastCompletedDay: null,
+      streak: 0,
+    };
+    return Object.assign(defaults, raw || {});
+  }
+
+  let state = loadState();
+
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable */ }
+  }
+
+  // Timer runtime (not persisted mid-run, restarts fresh on reload)
+  let mode = "focus"; // 'focus' | 'break'
+  let totalSeconds = state.focusMins * 60;
+  let secondsLeft = totalSeconds;
+  let running = false;
+  let tickHandle = null;
+  let lastTick = null;
+
+  function fmt(s) {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return String(m).padStart(2, "0") + ":" + String(sec).padStart(2, "0");
+  }
+
+  function updateRing() {
+    const pct = totalSeconds > 0 ? secondsLeft / totalSeconds : 0;
+    const offset = RING_CIRC * (1 - pct);
+    el.ring.style.strokeDashoffset = offset;
+    el.ring.classList.toggle("break", mode === "break");
+  }
+
+  function render() {
+    el.time.textContent = fmt(secondsLeft);
+    el.modeLabel.textContent = mode === "focus" ? "Focus" : "Break";
+    el.modeLabel.classList.toggle("break", mode === "break");
+    updateRing();
+    el.startBtn.textContent = running ? "Pause" : (secondsLeft < totalSeconds ? "Resume" : "Start");
+    el.startBtn.classList.toggle("running", running);
+
+    const activeTask = state.tasks.find(t => t.id === state.activeTaskId);
+    el.currentTaskLabel.textContent = activeTask ? activeTask.text : "";
+
+    renderTasks();
+    renderStats();
+  }
+
+  function renderStats() {
+    const key = todayKey();
+    el.todayPomos.textContent = state.pomosByDay[key] || 0;
+    el.totalPomos.textContent = state.totalPomos;
+    el.tasksDone.textContent = state.tasks.filter(t => t.done).length;
+    el.streakCount.textContent = state.streak;
+  }
+
+  function renderTasks() {
+    el.taskList.innerHTML = "";
+    if (state.tasks.length === 0) {
+      el.emptyState.style.display = "block";
+    } else {
+      el.emptyState.style.display = "none";
+    }
+    const remaining = state.tasks.filter(t => !t.done).length;
+    el.taskCount.textContent = state.tasks.length ? (remaining + " left") : "";
+
+    state.tasks.forEach(task => {
+      const li = document.createElement("li");
+      li.className = "task-item" + (task.done ? " done" : "") + (task.id === state.activeTaskId ? " active" : "");
+
+      const checkbox = document.createElement("button");
+      checkbox.className = "checkbox" + (task.done ? " checked" : "");
+      checkbox.innerHTML = task.done ? "✓" : "";
+      checkbox.title = "Mark done";
+      checkbox.onclick = () => {
+        task.done = !task.done;
+        if (task.done && state.activeTaskId === task.id) state.activeTaskId = null;
+        save();
+        render();
+      };
+
+      const text = document.createElement("span");
+      text.className = "task-text";
+      text.textContent = task.text;
+      text.title = "Set as active task";
+      text.onclick = () => {
+        if (task.done) return;
+        state.activeTaskId = state.activeTaskId === task.id ? null : task.id;
+        save();
+        render();
+      };
+
+      const pomos = document.createElement("span");
+      pomos.className = "task-pomos";
+      pomos.textContent = task.pomos > 0 ? ("🍅×" + task.pomos) : "";
+
+      const del = document.createElement("button");
+      del.className = "task-delete";
+      del.innerHTML = "×";
+      del.title = "Delete task";
+      del.onclick = () => {
+        state.tasks = state.tasks.filter(t => t.id !== task.id);
+        if (state.activeTaskId === task.id) state.activeTaskId = null;
+        save();
+        render();
+      };
+
+      li.appendChild(checkbox);
+      li.appendChild(text);
+      li.appendChild(pomos);
+      li.appendChild(del);
+      el.taskList.appendChild(li);
+    });
+  }
+
+  function addTask() {
+    const text = el.taskInput.value.trim();
+    if (!text) return;
+    state.tasks.push({ id: Date.now() + "-" + Math.random().toString(36).slice(2, 7), text, done: false, pomos: 0 });
+    el.taskInput.value = "";
+    save();
+    render();
+  }
+
+  el.addTaskBtn.onclick = addTask;
+  el.taskInput.addEventListener("keydown", e => { if (e.key === "Enter") addTask(); });
+
+  function playChime() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const now = ctx.currentTime;
+      [880, 1320].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0, now + i * 0.15);
+        gain.gain.linearRampToValueAtTime(0.2, now + i * 0.15 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.5);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now + i * 0.15);
+        osc.stop(now + i * 0.15 + 0.55);
+      });
+    } catch (e) { /* audio not available */ }
+  }
+
+  function recordPomoCompletion() {
+    const key = todayKey();
+    state.pomosByDay[key] = (state.pomosByDay[key] || 0) + 1;
+    state.totalPomos += 1;
+
+    if (state.lastCompletedDay !== key) {
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      const yKey = y.getFullYear() + "-" + String(y.getMonth() + 1).padStart(2, "0") + "-" + String(y.getDate()).padStart(2, "0");
+      if (state.lastCompletedDay === yKey) {
+        state.streak += 1;
+      } else {
+        state.streak = 1;
+      }
+      state.lastCompletedDay = key;
+    }
+
+    const activeTask = state.tasks.find(t => t.id === state.activeTaskId);
+    if (activeTask) activeTask.pomos += 1;
+  }
+
+  function switchMode(nextMode) {
+    mode = nextMode;
+    totalSeconds = (mode === "focus" ? state.focusMins : Math.max(5, Math.round(state.focusMins / 5))) * 60;
+    secondsLeft = totalSeconds;
+    running = false;
+    stopTick();
+    render();
+  }
+
+  function completeInterval() {
+    playChime();
+    if (mode === "focus") {
+      recordPomoCompletion();
+      save();
+      switchMode("break");
+    } else {
+      switchMode("focus");
+    }
+  }
+
+  function tick() {
+    const now = Date.now();
+    if (lastTick == null) lastTick = now;
+    const elapsed = Math.round((now - lastTick) / 1000);
+    if (elapsed >= 1) {
+      lastTick = now;
+      secondsLeft = Math.max(0, secondsLeft - elapsed);
+      if (secondsLeft <= 0) {
+        stopTick();
+        running = false;
+        completeInterval();
+        return;
+      }
+      render();
+    }
+  }
+
+  function startTick() {
+    lastTick = Date.now();
+    tickHandle = setInterval(tick, 250);
+  }
+  function stopTick() {
+    if (tickHandle) clearInterval(tickHandle);
+    tickHandle = null;
+    lastTick = null;
+  }
+
+  el.startBtn.onclick = () => {
+    running = !running;
+    if (running) {
+      startTick();
+    } else {
+      stopTick();
+    }
+    render();
+  };
+
+  el.resetBtn.onclick = () => {
+    running = false;
+    stopTick();
+    secondsLeft = totalSeconds;
+    render();
+  };
+
+  el.skipBtn.onclick = () => {
+    running = false;
+    stopTick();
+    switchMode(mode === "focus" ? "break" : "focus");
+  };
+
+  el.durationRow.querySelectorAll(".chip").forEach(chip => {
+    chip.onclick = () => {
+      el.durationRow.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+      chip.classList.add("active");
+      state.focusMins = parseInt(chip.dataset.mins, 10);
+      save();
+      if (mode === "focus") {
+        running = false;
+        stopTick();
+        totalSeconds = state.focusMins * 60;
+        secondsLeft = totalSeconds;
+        render();
+      }
+    };
+  });
+
+  // init duration chip from saved state
+  el.durationRow.querySelectorAll(".chip").forEach(chip => {
+    chip.classList.toggle("active", parseInt(chip.dataset.mins, 10) === state.focusMins);
+  });
+  totalSeconds = state.focusMins * 60;
+  secondsLeft = totalSeconds;
+
+  render();
+})();
+</script>
+</body>
+</html>
